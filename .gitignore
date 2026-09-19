@@ -1,2 +1,6 @@
 env-global/
 .ipynb_checkpoints/
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/

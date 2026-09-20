@@ -1,0 +1,75 @@
+\documentclass{article}
+\usepackage{graphicx} 
+\usepackage[a4paper,margin=2.5cm]{geometry}
+\usepackage{babel}[brazil]
+\usepackage{float}
+
+\title{Trabalho Prático 1 -- Compressão de Imagens}
+\author{Marcos Daniel Souza Netto}
+\date{Setembro 2026}
+\renewcommand{\arraystretch}{1.15}
+
+% Preencha estes campos com os valores impressos pela célula de testes do notebook.
+\newcommand{\cameramanPSNR}{39.56}
+\newcommand{\cameramanRate}{2.77}
+\newcommand{\baboonPSNR}{38.83}
+\newcommand{\baboonRate}{2.05}
+\newcommand{\lenaPSNR}{39.17}
+\newcommand{\lenaRate}{3.74}
+\newcommand{\unequalPSNR}{41.27}
+\newcommand{\unequalRate}{6.44}
+
+% imagem	 PSNR dB	 taxa
+
+% cameraman.pgm	 39.56337498191346	 2.772015903899839
+% baboon.pgm	 38.83016646115058	 2.0533880903490758
+% lena.pgm	 39.174655956336345	 3.74839493815686
+% unequal.pgm	 41.27627501765435	 6.4456350964831
+
+\begin{document}
+
+\maketitle
+\section{Introdução}
+O trabalho prático consiste na implementação de um compressor de imagens em tons de cinza utilizando técnicas vistas em aula, como decomposição pela transformada DCT, predição espacial do erro e o algoritmo de Huffman. A implementação a ser apresentada aqui é com perdas, pois tanto a DCT quanto o erro da predição foram quantizados. A proposta busca aumentar a compressão sem degradar excessivamente a imagem: a informação descartada pela DCT é representada por um segundo fluxo (predição do erro), e explorado por Huffman. O resultado final é armazenado em um formato binário e posteriormente reconstruído a partir do arquivo salvo.
+
+\section{Solução proposta}
+O pipeline implementado é:
+\begin{enumerate}
+    \item Completar a imagem com uma margem, quando as dimensões não são múltiplas de 8, permitindo aplicação do DCT.
+    \item Aplicar DCT em blocos de $8\times8$ e quantizar os coeficientes usando uma das tabelas definidas no notebook, de preferência uma tabela mais agressiva que o padrão do JPEG.
+    \item Preparar esse dado para compressão do Huffman, realizando algo semelhante à predição de erro para blocos DCT consecutivos: a função de erro é basicamente prever utilizando o bloco anterior. Além disso faço uma varredura em zigue-zague e elimino o sufixo de zeros de cada bloco (armazenando o tamanho do prefixo).
+    \item Calcular o erro entre a imagem original e a reconstrução obtida após a DCT quantizada e quantizar esse erro com um preditor espacial.
+    \item Codificar separadamente o fluxo dos coeficientes DCT e o fluxo de erro usando Huffman.
+    \item Gravar cabeçalho, tabelas de Huffman e os bits codificados em um arquivo \texttt{.compressed}.
+    \item Ler o arquivo e executar o processo inverso para obter a imagem reconstruída.
+\end{enumerate}
+
+Os principais parâmetros explorados no experimento principal do notebook são \texttt{DCT\_QUALITY} e \texttt{RESIDUE\_Q}, que representam respectivamente, a tabela de quantização utilizada pelo DCT e quanto de quantização aplico na predição do erro no segundo fluxo. A intuição é que posso aplicar uma quantização DCT mais agressiva e parte da informação perdida é recuperada pelo segundo fluxo. A qualidade final é medida por MSE e PSNR, sendo que valores aceitáveis de qualidade são tipicamente PSNR $\ge 33$db. 
+
+Acredito que a parte do pipeline mais explorado é a utilização da predição do erro com base na imagem gerada pelo DCT, sendo que dados descartados pela quantização DCT não são diretamente perdidos: esses erros tendem a possuir valores pequenos e repetidos, que foi explorado tanto pela quantização dessa segunda parte quanto pelo huffman. O arquivo final também possui um formato próprio, contendo dimensões originais e com \textit{padding}, parâmetros de quantização, tabelas e comprimentos dos fluxos.
+
+\section{Resultados}
+
+Abaixo apresento os dados de taxa e qualidade de compressão nas imagens disponibilizadas.
+
+\begin{table}[H]
+\centering
+\caption{Resultados finais para os quatro arquivos.}
+\label{tab:resultados}
+\begin{tabular}{lcc}
+\toprule
+Imagem & PSNR (dB) & Taxa de compressão \\
+\midrule
+\texttt{cameraman.pgm} & \cameramanPSNR & \cameramanRate \\
+\texttt{baboon.pgm}    & \baboonPSNR    & \baboonRate \\
+\texttt{lena.pgm}      & \lenaPSNR      & \lenaRate \\
+\texttt{unequal.pgm}   & \unequalPSNR   & \unequalRate \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+A análise esperada é diretamente relacionada ao conteúdo espacial das imagens. \texttt{baboon.pgm}, por apresentar grande quantidade de textura e componentes de alta frequência, tende a preservar mais coeficientes após a quantização e, portanto, oferece menos redundância para o esquema proposto. Já uma imagem com regiões suaves e baixo contraste, como \texttt{unequal.pgm}, tende a gerar mais coeficientes pequenos, maior concentração de símbolos no residual e melhor aproveitamento do Huffman.
+
+Há também um compromisso entre qualidade e tamanho. Aumentar \texttt{DCT\_QUALITY} torna a quantização mais agressiva; aumentar \texttt{RESIDUE\_Q} descarta mais detalhes na predição do erro. Em ambos os casos, espera-se redução do tamanho do arquivo acompanhada de redução do PSNR. A escolha dos parâmetros procura manter o PSNR acima do patamar de 33 dB, evitando uma taxa de compressão próxima ou inferior a 2.
+
+\end{document}
